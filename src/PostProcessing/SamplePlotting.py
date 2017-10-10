@@ -171,7 +171,7 @@ class PlotLine(PyFoamApplication):
                         plt.legend()
                         plt.savefig("{}.png".format(_figurePath))
                         plt.close()
-                        pd1 = _filePath
+                        pd1 = None
                     except:
                         print("\n Couldnt read the csv file for field {} \n".format(_fieldName))
                 plotFieldsIter.close()
