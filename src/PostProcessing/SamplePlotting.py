@@ -12,8 +12,29 @@ import shutil
 from pathlib import Path
 import numpy as np
 
-from PostProcessing.Utilities import PostProcessingUtilities as postUtils
+from PostProcessing.Utilities import PostProcessingUtilities as PPUtils
 
+class PPFile(object):
+    
+    def __init__(self, _fPath):
+        if isinstance(_fPath, Path) is False:
+            _path = Path(_fPath)
+            
+        self.filePath = _path.resolve()
+        self.fileName = _path.name
+
+
+class PPLineFile(PPFile):
+    
+    def __init__(self, _fPath, _fieldName, _fieldDim, _timeStep, _fieldDirPath):
+        PPFile.__init__(self, _fPath)
+        self.fieldName = _fieldName
+        self.fieldDim = _fieldDim
+        self.timeStep = _timeStep
+        self.fieldDirPath = _fieldDirPath
+            
+    
+            
 
 class PlotLine(PyFoamApplication):
  
@@ -53,73 +74,84 @@ class PlotLine(PyFoamApplication):
         else:
             x,y = None,None
             return x,y
-        
-        
     
+    @staticmethod
+    def makeAbsPathsInList(_list):  
+        _absDirs = []
+        for _dir in _list:
+            _absDirs.append(path.abspath(_dir))
+        return _absDirs
+    
+    @staticmethod
+    def getValidSolutionDirectory(_caseDir):
+        if path.isdir(path.abspath(_caseDir)) is True:
+            sol=SolutionDirectory(_caseDir)
+            if sol.isValid():
+                return sol
+            
+    def getFieldFiles(self, _fieldDir):
+        _fieldDirPath = path.join(self.postProcessingDir, _fieldDir)
+        _fieldName = Path(_fieldDir).name
+        _fieldName = PPUtils.getFieldNameFromString(_fieldName)
+        _fieldDim  = PPUtils.getDimensionOfField(_fieldName)
+        
+        _list = []
+        for root, subFolders, files in os.walk(_fieldDirPath):
+            for aFile in files:
+                absFilePath = os.path.join(root,aFile)
+                _timeStep = Path(root).name
+                _list.append(PPLineFile(absFilePath, 
+                                        _fieldName,
+                                        _fieldDim,
+                                        _timeStep, 
+                                        _fieldDirPath))
+        return _list
         
     def run(self):
-        _dirs=self.parser.getArgs()
+        _argDirs=self.parser.getArgs()
         
-        if len(_dirs)==0:
-            _dirs=[path.curdir]
-            
-        absDirs = []
-        for _dir in _dirs:
-            absDirs.append(path.abspath(_dir))
+        if len(_argDirs)==0:
+            _argDirs=[path.curdir]
+        
+        #Build list with abs paths of all given case dirs
+        _absArgDirs = PlotLine.makeAbsPathsInList(_argDirs)
         
         #Iterate through all folder given as an argument
-        for _dir in absDirs:
+        for _dir in _absArgDirs:
             print("\n\nWorking on Case: \n {} \n".format(_dir))
-            # Checks wheter the given path is a valid Foam case
-            if path.isdir(path.abspath(_dir)) is True:
-                sol=SolutionDirectory(_dir)
-                if sol.isValid():
-                    self.sol = sol
-                    os.chdir(os.path.abspath(_dir))
-        
-            self.postProcessingDir = path.join(self.sol.name, "postProcessing")
-            fieldDirs = os.listdir(self.postProcessingDir)
+            sol = PlotLine.getValidSolutionDirectory(_dir)
             
-            if path.exists(path.join(self.postProcessingDir, "plots")) is False:
+            os.chdir(sol.name)
+            self.postProcessingDir = path.join(sol.name, "postProcessing")
+            self.plotDir = path.join(self.postProcessingDir, "plots")
+            #Exit if the folder for plotting exists
+            if path.exists(self.plotDir) is False:
                 os.mkdir(path.join(self.postProcessingDir, "plots"))
             else:
                 print("Folder with plots already exists. Remove the folder before executing.")
                 exit()
-           
-            self.plotDir = path.join(self.postProcessingDir, "plots")
-    
     
             # Iterate the folders for the fields in postProcessing
             #dirIter = tqdm(fieldDirs, unit='Dirs', desc='Dirs')
+            fieldDirs = os.listdir(self.postProcessingDir)
             for fieldDir in fieldDirs:
-                
-                fieldDirPath = path.join(self.postProcessingDir, fieldDir)
-                if path.isdir(fieldDirPath) is False:
+                #Ignore files found in the /postProcessing directory
+                if path.isdir(path.join(self.postProcessingDir, fieldDir)) is False:
                     continue
-    
-                _fieldName = Path(fieldDir).name
-                _fieldName= postUtils.getFieldNameFromString(_fieldName)
-                _fieldDim = postUtils.getDimensionOfField(_fieldName)
-                print("\n Reading field: {}".format(_fieldName))
-    
+
+                print("\n Reading field: {}".format(fieldDir))
                 os.chdir(self.plotDir)
                 os.mkdir(fieldDir)
                 os.chdir(fieldDir)
                 
-                _dict = {}
-                for root, subFolders, files in os.walk(fieldDirPath):
-                    for aFile in files:
-                        absFilePath = os.path.join(root,aFile)
-                        _dict[root]=absFilePath
-                
-                    
+                fieldFiles = self.getFieldFiles(fieldDir)
                 #Finding the maximum and minium values of the field for all time steps
-                plotFieldsIter = tqdm(_dict.items(),unit=" Files")   
+                plotFieldFilesIter = tqdm(fieldFiles,unit=" Files")   
                 ymaxList = []
                 yminList = []
-                for key, value in plotFieldsIter:
+                for _file in plotFieldFilesIter:
                     try:
-                        pd1 = pd.read_csv(value, delimiter=' ', header=None)
+                        pd1 = pd.read_csv(_file.filePath, delimiter=' ', header=None)
                         myArray = np.array(pd1)
                         x,y = self.getXYValues(myArray)
                         ymaxList.append(np.max(y))
@@ -132,38 +164,33 @@ class PlotLine(PyFoamApplication):
                     if ymax == ymin:
                         ymax += 1
                         ymin -= 1
-                    plotFieldsIter.close()
+                    plotFieldFilesIter.close()
                 except:
-                    print("Caught exception, ymax is: {}".format(ymax))
-                    print("Caught exception, ymin is: {}".format(ymin))
                     ymax = 0
                     ymin = 0
+                    print("Caught exception, ymax is: {}".format(ymax))
+                    print("Caught exception, ymin is: {}".format(ymin))
+
                 
-                print("\n Plotting field: {}".format(_fieldName))
+                print("\n Plotting field: {}".format(Path(fieldDir).name))
                 # Iterate through the files of one field
-                plotFieldsIter = tqdm(_dict.items(),unit=" Files")   
-                for key, value in plotFieldsIter:
-                    _root = key
-                    _absFilePath = value
-                     
-                    _timestep = Path(key).name
-                    
-     
-                    _fileName = "{}_{}".format(_timestep,_fieldName)
-                    _filePath = path.join(self.plotDir, Path(key).parent.name)
+                plotFieldFilesIter = tqdm(fieldFiles, unit=" Files")   
+                for _file in plotFieldFilesIter:
+                    _fileName = "{}_{}".format(_file.timeStep,_file.fieldName)
+                    _filePath = path.join(self.plotDir, fieldDir)
                     _figurePath = path.join(_filePath, _fileName)
                      
                     
                     try:
-                        pd1 = pd.read_csv(value, delimiter=' ', header=None)
+                        pd1 = pd.read_csv(_file.filePath, delimiter=' ', header=None)
                         my_data = pd1
                         myArray = np.array(my_data)
                         x,y = self.getXYValues(myArray)    
                                                 
                         #Plotting commands
-                        theLabel = '{} [{}]'.format(_fieldName,_fieldDim)
+                        theLabel = '{} [{}]'.format(_file.fieldName,_file.fieldDim)
                         simName = path.basename(sol.name)
-                        theTitle = "{} - Field {} of Sim: {}".format(_timestep, _fieldName, simName)
+                        theTitle = "{} - Field: {} of Sim: {}".format(_file.timeStep, _file.fieldName, simName)
                         plt.plot(x,y, color='black', linestyle='solid', label=theLabel)
                         plt.title(theTitle)
                         axes = plt.gca()
@@ -173,8 +200,8 @@ class PlotLine(PyFoamApplication):
                         plt.close()
                         pd1 = None
                     except:
-                        print("\n Couldnt read the csv file for field {} \n".format(_fieldName))
-                plotFieldsIter.close()
+                        print("\n Couldnt read the csv file for field {} \n".format(_file.fieldName))
+                plotFieldFilesIter.close()
             
             
         

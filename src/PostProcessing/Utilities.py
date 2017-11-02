@@ -1,4 +1,4 @@
-from et_xmlfile.tests.common_imports import _str
+
 
 class PostProcessingUtilities(object):
 
