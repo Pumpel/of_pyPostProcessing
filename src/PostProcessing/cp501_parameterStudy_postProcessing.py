@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import pandas as pd
 
+
 if __name__ == '__main__':
     
     os.chdir("/media/timo/linuxSimData/NonNewtonian/cp501/cp501_wedgegrid003_XPP-SE_validationStudy")

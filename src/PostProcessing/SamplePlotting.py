@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 import numpy as np
 
-from PostProcessing.Utilities import PostProcessingUtilities as PPUtils
+from PostProcessing.PostPUtilities import PostPUtilities as PPUtils
 
 class PPFile(object):
     
@@ -74,20 +74,6 @@ class PlotLine(PyFoamApplication):
         else:
             x,y = None,None
             return x,y
-    
-    @staticmethod
-    def makeAbsPathsInList(_list):  
-        _absDirs = []
-        for _dir in _list:
-            _absDirs.append(path.abspath(_dir))
-        return _absDirs
-    
-    @staticmethod
-    def getValidSolutionDirectory(_caseDir):
-        if path.isdir(path.abspath(_caseDir)) is True:
-            sol=SolutionDirectory(_caseDir)
-            if sol.isValid():
-                return sol
             
     def getFieldFiles(self, _fieldDir):
         _fieldDirPath = path.join(self.postProcessingDir, _fieldDir)
@@ -114,12 +100,12 @@ class PlotLine(PyFoamApplication):
             _argDirs=[path.curdir]
         
         #Build list with abs paths of all given case dirs
-        _absArgDirs = PlotLine.makeAbsPathsInList(_argDirs)
+        _absArgDirs = PPUtils.makeAbsPathsInList(_argDirs)
         
         #Iterate through all folder given as an argument
         for _dir in _absArgDirs:
             print("\n\nWorking on Case: \n {} \n".format(_dir))
-            sol = PlotLine.getValidSolutionDirectory(_dir)
+            sol = PPUtils.getValidSolutionDirectory(_dir)
             
             os.chdir(sol.name)
             self.postProcessingDir = path.join(sol.name, "postProcessing")
@@ -201,16 +187,7 @@ class PlotLine(PyFoamApplication):
                         pd1 = None
                     except:
                         print("\n Couldnt read the csv file for field {} \n".format(_file.fieldName))
-                plotFieldFilesIter.close()
-            
-            
-        
-        
-        
-        
-           
-
-            
+                plotFieldFilesIter.close()     
         
         
         

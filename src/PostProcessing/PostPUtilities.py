@@ -1,6 +1,10 @@
 
+from os import path
+from PyFoam.RunDictionary.SolutionDirectory import SolutionDirectory
 
-class PostProcessingUtilities(object):
+
+
+class PostPUtilities(object):
 
     fieldNamesList = ['p','p_rgh','U','rho','alpha',
                       'rhoPhi', 'phi', 'T', 'T.vapor', 
@@ -24,7 +28,7 @@ class PostProcessingUtilities(object):
     @staticmethod
     def getFieldNameFromString(_string):       
         name = []
-        for fieldName in PostProcessingUtilities.fieldNamesList:
+        for fieldName in PostPUtilities.fieldNamesList:
             if fieldName in _string:
                 name.append(fieldName)
 #             elif fieldName == _string:
@@ -47,7 +51,7 @@ class PostProcessingUtilities(object):
     @staticmethod
     def getDimensionOfField(_field):
         name = {}
-        for key, value in PostProcessingUtilities.fieldDimesionsDict.items():
+        for key, value in PostPUtilities.fieldDimesionsDict.items():
             if key in _field:
                 name[key] = value
         if len(name) is 0:
@@ -60,3 +64,17 @@ class PostProcessingUtilities(object):
         else:
             for value in name.values():
                 return value
+            
+    @staticmethod
+    def makeAbsPathsInList(_list):  
+        _absDirs = []
+        for _dir in _list:
+            _absDirs.append(path.abspath(_dir))
+        return _absDirs
+    
+    @staticmethod
+    def getValidSolutionDirectory(_caseDir):
+        if path.isdir(path.abspath(_caseDir)) is True:
+            sol=SolutionDirectory(_caseDir)
+            if sol.isValid():
+                return sol
