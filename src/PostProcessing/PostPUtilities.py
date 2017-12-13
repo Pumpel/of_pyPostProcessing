@@ -3,7 +3,6 @@ from os import path
 from PyFoam.RunDictionary.SolutionDirectory import SolutionDirectory
 
 
-
 class PostPUtilities(object):
 
     fieldNamesList = ['p','p_rgh','U','rho','alpha',
@@ -78,3 +77,4 @@ class PostPUtilities(object):
             sol=SolutionDirectory(_caseDir)
             if sol.isValid():
                 return sol
+                                                                        
